@@ -1,5 +1,4 @@
-import mongoose, { Promise } from "mongoose";
-Promise = global.Promise;
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
   name: String,
