@@ -1,0 +1,24 @@
+{
+  "name": "olx_api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "start-dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.3",
+    "jimp": "^0.22.10",
+    "mongoose": "^8.1.1",
+    "nodemon": "^3.0.3",
+    "uuid": "^9.0.1"
+  }
+}
