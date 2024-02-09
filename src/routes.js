@@ -1,23 +1,24 @@
-import express from "express";
+const express = require("express");
 const router = express.Router();
+const ApiController = require("./controller/apiController");
+const Auth = require("./middleware/Auth");
 
-const AuthController = require("./controller/AuthController");
-const UsersController = require("./controller/UserController");
-const AdsController = require("./controller/AdsController");
+router.get("/ping", ApiController.ping);
 
-router.get("/ping", (req, res) => {
-  res.json({ pong: true });
-});
+// Rotas relacionadas aos estados
+router.get("/states", ApiController.getStates);
 
-router.get("/states", UsersController.getStates);
-router.get("/user/me", UsersController.info);
-router.put("/user/me", UsersController.editAction);
-router.post("/user/signin", AuthController.signin);
-router.post("/user/signup", AuthController.signup);
-router.get("/categories", AdsController.getCategories);
-router.post("/ad/add", AdsController.addAction);
-router.get("/ad/list", AdsController.getList);
-router.get("/ad/item", AdsController.getItem);
-router.post("/ad/:id", AdsController.editAction);
+// Rotas relacionadas ao usuário
+router.get("/user/profile", Auth.private, ApiController.getUserInfo);
+router.put("/user/profile", Auth.private, ApiController.editUserInfo);
+router.post("/user/signin", ApiController.signin);
+router.post("/user/signup", ApiController.signup);
+
+// Rotas relacionadas aos anúncios
+router.get("/categories", ApiController.getCategories);
+router.post("/ad", ApiController.addAction);
+router.get("/ad", ApiController.getList);
+router.get("/ad/:id", ApiController.getItem);
+router.put("/ad/:id", Auth.private, ApiController.editAdsAction);
 
 module.exports = router;
