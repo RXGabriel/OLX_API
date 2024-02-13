@@ -107,4 +107,45 @@ module.exports.getUserInfo = async function (req, res) {
     ads: adList,
   });
 };
-module.exports.editUserInfo = async function (req, res) {};
+module.exports.editUserInfo = async function (req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.json({ errors: errors.mapped() });
+    return;
+  }
+  const data = matchedData(req);
+  let update = {};
+
+  if (data.name) {
+    update.name = data.name;
+  }
+
+  if (data.email) {
+    const emailCheck = await User.findOne({ email: data.email });
+    if (emailCheck) {
+      res.json({ error: "Email já existe" });
+      return;
+    }
+    update.email = data.email;
+  }
+
+  if (data.state) {
+    if (mongoose.Types.ObjectId.isValid(data.state)) {
+      const stateCheck = await State.findById(data.state);
+      if (!stateCheck) {
+        res.json({ error: "Estado inexistente" });
+        return;
+      }
+      update.state = data.state;
+    } else {
+      res.json({ error: "Campo de estado inválido" });
+      return;
+    }
+  }
+  if (data.password) {
+    update.passwordHash = await bcrypt.hash(data.password, 10);
+  }
+
+  await User.findOneAndUpdate({ token: data.token }, { $set: update });
+  res.json({});
+};

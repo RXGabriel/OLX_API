@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const ApiController = require("./controller/apiController");
 const Auth = require("./middleware/Auth");
+const UserValidator = require("./validator/UserValidator");
 const AuthValidator = require("./validator/AuthValidator");
 
 router.get("/ping", ApiController.ping);
@@ -11,7 +12,7 @@ router.get("/states", ApiController.getStates);
 
 // Rotas relacionadas ao usuário
 router.get("/user/profile", Auth.private, ApiController.getUserInfo);
-router.put("/user/profile", Auth.private, ApiController.editUserInfo);
+router.put("/user/profile", UserValidator.edit, ApiController.editUserInfo);
 router.post("/user/signin", AuthValidator.signin, ApiController.signin);
 router.post("/user/signup", AuthValidator.signup, ApiController.signup);
 
