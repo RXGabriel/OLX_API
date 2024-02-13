@@ -19,7 +19,7 @@ router.post("/user/signup", AuthValidator.signup, ApiController.signup);
 // Rotas relacionadas aos anúncios
 router.get("/categories", ApiController.getCategories);
 router.post("/ad", ApiController.addAction);
-router.get("/ad", ApiController.getList);
+router.get("/ad/list", ApiController.getList);
 router.get("/ad/:id", ApiController.getItem);
 router.put("/ad/:id", Auth.private, ApiController.editAdsAction);
 

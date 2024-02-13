@@ -91,7 +91,61 @@ module.exports.addAction = async function (req, res) {
   res.json({ id: info._id });
 };
 
-module.exports.getList = async function (req, res) {};
+module.exports.getList = async function (req, res) {
+  let {
+    sort = "asc",
+    offset = 0,
+    limit = 8,
+    query,
+    category,
+    state,
+  } = req.query;
+  let filter = { status: true };
+  let total = 0;
+
+  if (query) {
+    filter.title = { $regex: query, $options: "i" };
+  }
+
+  if (category) {
+    const cat = await Category.findOne({ slug: category }).exec();
+    if (cat) {
+      filter.category = cat._id.toString();
+    }
+  }
+
+  if (state) {
+    const stateData = await State.findOne({ name: state.toUpperCase() }).exec();
+    if (stateData) {
+      filter.state = stateData._id.toString();
+    }
+  }
+
+  const adsTotal = await Ad.find(filter).exec();
+  total = adsTotal.length;
+
+  const adsData = await Ad.find(filter)
+    .sort({ dateCreated: sort == "desc" ? -1 : 1 })
+    .skip(parseInt(offset))
+    .limit(parseInt(limit))
+    .exec();
+
+  let ads = [];
+  for (let i in adsData) {
+    let image;
+    let dafaultImage = adsData[i].images.find((x) => x.default == true);
+    if (dafaultImage) {
+      image = `${process.env.BASE}/media/${dafaultImage.url}`;
+    } else {
+      image = `${process.env.BASE}/media/default.jpg`;
+    }
+    ads.push({
+      ...adsData[i]._doc,
+      image,
+    });
+  }
+  res.json({ ads: ads, total });
+};
 module.exports.getItem = async function (req, res) {};
 module.exports.editAdsAction = async function (req, res) {};
 
