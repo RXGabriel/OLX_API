@@ -1,6 +1,8 @@
 const bcrypt = require("bcrypt");
 const { validationResult, matchedData } = require("express-validator");
 const User = require("../model/User");
+const Category = require("../model/Category");
+const Ad = require("../model/Ad");
 const State = require("../model/State");
 const mongoose = require("mongoose");
 module.exports.ping = function (req, res) {
@@ -86,5 +88,23 @@ module.exports.getStates = async function (req, res) {
   const states = await State.find();
   res.json({ states });
 };
-module.exports.getUserInfo = async function (req, res) {};
+module.exports.getUserInfo = async function (req, res) {
+  let { token } = req.query;
+  const user = await User.findOne({ token });
+  const state = await State.findById(user.state);
+  const ads = await Ad.find({ idUser: user._id.toString() });
+
+  let adList = [];
+  for (let i in ads) {
+    const cat = await Category.findById(ads[i].category);
+    adList.push({ ...ads[i], category: cat.slug });
+  }
+
+  res.json({
+    name: user.name,
+    email: user.email,
+    state: state.name,
+    ads: adList,
+  });
+};
 module.exports.editUserInfo = async function (req, res) {};
