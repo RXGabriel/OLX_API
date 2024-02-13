@@ -10,7 +10,19 @@ module.exports.ping = function (req, res) {
 };
 
 // O Primeiro é o AdsController
-module.exports.getCategories = async function (req, res) {};
+module.exports.getCategories = async function (req, res) {
+  const cats = await Category.find();
+  let categories = [];
+
+  for (let i in cats) {
+    categories.push({
+      ...cats[i]._doc,
+      img: `${process.env.BASE}/assets/images/${cats[i].slug}.png`,
+    });
+  }
+
+  res.json({ categories });
+};
 module.exports.addAction = async function (req, res) {};
 module.exports.getList = async function (req, res) {};
 module.exports.getItem = async function (req, res) {};
