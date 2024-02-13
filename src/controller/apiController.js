@@ -1,5 +1,8 @@
-const State = require("../model/State");
+const bcrypt = require("bcrypt");
 const { validationResult, matchedData } = require("express-validator");
+const User = require("../model/User");
+const State = require("../model/State");
+const mongoose = require("mongoose");
 module.exports.ping = function (req, res) {
   res.json({ pong: true });
 };
@@ -20,7 +23,35 @@ module.exports.signup = async function (req, res) {
     return;
   }
   const data = matchedData(req);
-  res.json({ tudoCerto: true, data: data });
+  const user = await User.findOne({ email: data.email });
+  if (user) {
+    res.json({ error: { email: { msg: "Email ja existe" } } });
+    return;
+  }
+  if (mongoose.Types.ObjectId.isValid(data.state)) {
+    const stateItem = await State.findById(data.state);
+    if (!stateItem) {
+      res.json({ error: { state: { msg: "Estado inexistente" } } });
+      return;
+    }
+  } else {
+    res.json({ error: { state: { msg: "Campo de estado inválido	" } } });
+    return;
+  }
+  const passwordHash = bcrypt.hashSync(data.password, 10);
+  const payload = (Date.now() + Math.random()).toString();
+  const token = await bcrypt.hash(payload, 10);
+
+  const newuser = new User({
+    name: data.name,
+    email: data.email,
+    passwordHash: passwordHash,
+    token: token,
+    state: data.state,
+  });
+  await newuser.save();
+
+  res.json({ token });
 };
 
 // O terceiro é o UserController
