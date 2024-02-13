@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const ApiController = require("./controller/apiController");
 const Auth = require("./middleware/Auth");
+const AuthValidator = require("./validator/AuthValidator");
 
 router.get("/ping", ApiController.ping);
 
@@ -12,7 +13,7 @@ router.get("/states", ApiController.getStates);
 router.get("/user/profile", Auth.private, ApiController.getUserInfo);
 router.put("/user/profile", Auth.private, ApiController.editUserInfo);
 router.post("/user/signin", ApiController.signin);
-router.post("/user/signup", ApiController.signup);
+router.post("/user/signup", AuthValidator.signup, ApiController.signup);
 
 // Rotas relacionadas aos anúncios
 router.get("/categories", ApiController.getCategories);
