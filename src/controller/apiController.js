@@ -1,10 +1,19 @@
 const bcrypt = require("bcrypt");
+const { v4: uuid } = require("uuid");
+const jimp = require("jimp");
 const { validationResult, matchedData } = require("express-validator");
 const User = require("../model/User");
 const Category = require("../model/Category");
 const Ad = require("../model/Ad");
 const State = require("../model/State");
 const mongoose = require("mongoose");
+
+const addImage = async (buffer) => {
+  let newName = `${uuid()}.jpg`;
+  let tempImage = await jimp.read(buffer);
+  tempImage.cover(500, 500).quality(80).write(`./public/media/${newName}`);
+  return newName;
+};
 module.exports.ping = function (req, res) {
   res.json({ pong: true });
 };
@@ -23,7 +32,65 @@ module.exports.getCategories = async function (req, res) {
 
   res.json({ categories });
 };
-module.exports.addAction = async function (req, res) {};
+module.exports.addAction = async function (req, res) {
+  let { title, price, priceNegotiable, description, category, token } =
+    req.body;
+  const user = await User.findOne({ token: token }).exec();
+
+  if (!title || !category) {
+    res.json({ error: "Título e/ou categoria não informados" });
+    return;
+  }
+  if (price) {
+    price = price.replace(".", "").replace(",", ".").replace("R$ ", "");
+    price = parseFloat(price);
+  } else {
+    price = 0;
+  }
+
+  const newAd = new Ad();
+  newAd.status = true;
+  newAd.idUser = user._id;
+  newAd.state = user.state;
+  newAd.dateCreated = new Date();
+  newAd.title = title;
+  newAd.category = category;
+  newAd.price = price;
+  newAd.priceNegotiable = priceNegotiable == "true" ? true : false;
+  newAd.description = description;
+  newAd.views = 0;
+
+  if (req.files && req.files.image) {
+    if (req.files.image.length == undefined) {
+      if (
+        ["image/jpeg", "image/jpg", "image/png"].includes(
+          req.files.image.mimetype
+        )
+      ) {
+        let url = await addImage(req.files.image.data);
+        newAd.images.push({ url: url, default: false });
+      }
+    } else {
+      for (let i = 0; i < req.files.image.length; i++) {
+        if (
+          ["image/jpeg", "image/jpg", "image/png"].includes(
+            req.files.image[i].mimetype
+          )
+        ) {
+          let url = await addImage(req.files.image[i].data);
+          newAd.images.push({ url: url, default: false });
+        }
+      }
+    }
+  }
+  if (newAd.images.length > 0) {
+    newAd.images[0].default = true;
+  }
+
+  const info = await newAd.save();
+  res.json({ id: info._id });
+};
+
 module.exports.getList = async function (req, res) {};
 module.exports.getItem = async function (req, res) {};
 module.exports.editAdsAction = async function (req, res) {};
