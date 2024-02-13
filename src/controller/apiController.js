@@ -15,7 +15,33 @@ module.exports.getItem = async function (req, res) {};
 module.exports.editAdsAction = async function (req, res) {};
 
 // O segundo é o AuthController
-module.exports.signin = async function (req, res) {};
+module.exports.signin = async function (req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.json({ errors: errors.mapped() });
+    return;
+  }
+  const data = matchedData(req);
+
+  const user = await User.findOne({ email: data.email });
+  if (!user) {
+    res.json({ error: "Email e/ou senha errados" });
+    return;
+  }
+
+  const match = await bcrypt.compare(data.password, user.passwordHash);
+  if (!match) {
+    res.json({ error: "Email e/ou senha errados" });
+    return;
+  }
+
+  const payload = (Date.now() + Math.random()).toString();
+  const token = await bcrypt.hash(payload, 10);
+  user.token = token;
+  await user.save();
+
+  res.json({ token, email: data.email });
+};
 module.exports.signup = async function (req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -23,6 +49,7 @@ module.exports.signup = async function (req, res) {
     return;
   }
   const data = matchedData(req);
+
   const user = await User.findOne({ email: data.email });
   if (user) {
     res.json({ error: { email: { msg: "Email ja existe" } } });
