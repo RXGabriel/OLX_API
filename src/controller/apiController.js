@@ -11,16 +11,20 @@ const mongoose = require("mongoose");
 const addImage = async (buffer) => {
   let newName = `${uuid()}.jpg`;
   let tempImage = await jimp.read(buffer);
-  tempImage.cover(500, 500).quality(80).write(`./public/media/${newName}`);
+  await tempImage
+    .cover(500, 500)
+    .quality(80)
+    .writeAsync(`./public/media/${newName}`);
   return newName;
 };
+
 module.exports.ping = function (req, res) {
   res.json({ pong: true });
 };
+
 module.exports.getCategories = async function (req, res) {
   const cats = await Category.find();
   let categories = [];
-
   for (let i in cats) {
     categories.push({
       ...cats[i]._doc,
@@ -30,15 +34,26 @@ module.exports.getCategories = async function (req, res) {
 
   res.json({ categories });
 };
-module.exports.addAction = async function (req, res) {
-  let { title, price, priceNegotiable, description, category, token } =
-    req.body;
-  const user = await User.findOne({ token: token }).exec();
 
-  if (!title || !category) {
-    res.json({ error: "Título e/ou categoria não informados" });
+module.exports.addAction = async function (req, res) {
+  let { title, price, priceneg, desc, cat, token } = req.body;
+  const user = await User.findOne({ token }).exec();
+
+  if (!title || !cat) {
+    res.json({ error: "Titulo e/ou categoria não foram preenchidos" });
     return;
   }
+
+  if (cat.length < 12) {
+    res.json({ error: "ID de categoria inválido" });
+    return;
+  }
+  const category = await Category.findById(cat);
+  if (!category) {
+    res.json({ error: "Categoria inexistente" });
+    return;
+  }
+
   if (price) {
     price = price.replace(".", "").replace(",", ".").replace("R$ ", "");
     price = parseFloat(price);
@@ -52,35 +67,42 @@ module.exports.addAction = async function (req, res) {
   newAd.state = user.state;
   newAd.dateCreated = new Date();
   newAd.title = title;
-  newAd.category = category;
+  newAd.category = cat;
   newAd.price = price;
-  newAd.priceNegotiable = priceNegotiable == "true" ? true : false;
-  newAd.description = description;
+  newAd.priceNegotiable = priceneg == "true" ? true : false;
+  newAd.description = desc;
   newAd.views = 0;
 
-  if (req.files && req.files.image) {
-    if (req.files.image.length == undefined) {
+  if (req.files && req.files.img) {
+    if (req.files.img.length == undefined) {
       if (
         ["image/jpeg", "image/jpg", "image/png"].includes(
-          req.files.image.mimetype
+          req.files.img.mimetype
         )
       ) {
-        let url = await addImage(req.files.image.data);
-        newAd.images.push({ url: url, default: false });
+        let url = await addImage(req.files.img.data);
+        newAd.images.push({
+          url,
+          default: false,
+        });
       }
     } else {
-      for (let i = 0; i < req.files.image.length; i++) {
+      for (let i = 0; i < req.files.img.length; i++) {
         if (
           ["image/jpeg", "image/jpg", "image/png"].includes(
-            req.files.image[i].mimetype
+            req.files.img[i].mimetype
           )
         ) {
-          let url = await addImage(req.files.image[i].data);
-          newAd.images.push({ url: url, default: false });
+          let url = await addImage(req.files.img[i].data);
+          newAd.images.push({
+            url,
+            default: false,
+          });
         }
       }
     }
   }
+
   if (newAd.images.length > 0) {
     newAd.images[0].default = true;
   }
@@ -90,39 +112,31 @@ module.exports.addAction = async function (req, res) {
 };
 
 module.exports.getList = async function (req, res) {
-  let {
-    sort = "asc",
-    offset = 0,
-    limit = 8,
-    query,
-    category,
-    state,
-  } = req.query;
-  let filter = { status: true };
+  let { sort = "asc", offset = 0, limit = 8, q, cat, state } = req.query;
+  let filters = { status: true };
   let total = 0;
 
-  if (query) {
-    filter.title = { $regex: query, $options: "i" };
+  if (q) {
+    filters.title = { $regex: q, $options: "i" };
   }
 
-  if (category) {
-    const cat = await Category.findOne({ slug: category }).exec();
-    if (cat) {
-      filter.category = cat._id.toString();
+  if (cat) {
+    const c = await Category.findOne({ slug: cat }).exec();
+    if (c) {
+      filters.category = c._id.toString();
     }
   }
 
   if (state) {
-    const stateData = await State.findOne({ name: state.toUpperCase() }).exec();
-    if (stateData) {
-      filter.state = stateData._id.toString();
+    const s = await State.findOne({ name: state.toUpperCase() }).exec();
+    if (s) {
+      filters.state = s._id.toString();
     }
   }
 
-  const adsTotal = await Ad.find(filter).exec();
+  const adsTotal = await Ad.find(filters).exec();
   total = adsTotal.length;
-
-  const adsData = await Ad.find(filter)
+  const adsData = await Ad.find(filters)
     .sort({ dateCreated: sort == "desc" ? -1 : 1 })
     .skip(parseInt(offset))
     .limit(parseInt(limit))
@@ -131,19 +145,23 @@ module.exports.getList = async function (req, res) {
   let ads = [];
   for (let i in adsData) {
     let image;
-    let dafaultImage = adsData[i].images.find((x) => x.default == true);
-    if (dafaultImage) {
-      image = `${process.env.BASE}/media/${dafaultImage.url}`;
+    let defaultImg = adsData[i].images.find((e) => e.default);
+    if (defaultImg) {
+      image = `${process.env.BASE}/media/${defaultImg.url}`;
     } else {
       image = `${process.env.BASE}/media/default.jpg`;
     }
     ads.push({
-      ...adsData[i]._doc,
+      id: adsData[i]._id,
+      title: adsData[i].title,
+      price: adsData[i].price,
+      priceNegotiable: adsData[i].priceNegotiable,
       image,
     });
   }
-  res.json({ ads: ads, total });
+  res.json({ ads, total });
 };
+
 module.exports.getItem = async function (req, res) {
   let { id, other = null } = req.query;
 
@@ -218,80 +236,183 @@ module.exports.getItem = async function (req, res) {
   });
 };
 
-module.exports.editAdsAction = async function (req, res) {};
+module.exports.editAdsAction = async function (req, res) {
+  let { id } = req.params;
+  let { title, status, price, priceneg, desc, cat, images, token } = req.body;
+
+  if (id.length < 12) {
+    res.json({ error: "ID inválido" });
+    return;
+  }
+
+  const ad = await Ad.findById(id).exec();
+  if (!ad) {
+    res.json({ error: "Anúncio inexistente" });
+    return;
+  }
+
+  const user = await User.findOne({ token }).exec();
+  if (user._id.toString() !== ad.idUser) {
+    res.json({ error: "Este anúncio não é seu" });
+    return;
+  }
+
+  let updates = {};
+
+  if (title) {
+    updates.title = title;
+  }
+  if (price) {
+    price = price.replace(".", "").replace(",", ".").replace("R$ ", "");
+    price = parseFloat(price);
+    updates.price = price;
+  }
+  if (priceneg) {
+    updates.priceNegotiable = priceneg;
+  }
+  if (status) {
+    updates.status = status;
+  }
+  if (desc) {
+    updates.description = desc;
+  }
+  if (cat) {
+    const category = await Category.findOne({ slug: cat }).exec();
+    if (!category) {
+      res.json({ error: "Categoria inexistente" });
+      return;
+    }
+    updates.category = category._id.toString();
+  }
+
+  if (images) {
+    updates.images = images;
+  }
+
+  await Ad.findByIdAndUpdate(id, { $set: updates });
+
+  if (req.files && req.files.img) {
+    const adI = await Ad.findById(id);
+
+    if (req.files.img.length == undefined) {
+      if (
+        ["image/jpeg", "image/jpg", "image/png"].includes(
+          req.files.img.mimetype
+        )
+      ) {
+        let url = await addImage(req.files.img.data);
+        adI.images.push({
+          url,
+          default: false,
+        });
+      }
+    } else {
+      for (let i = 0; i < req.files.img.length; i++) {
+        if (
+          ["image/jpeg", "image/jpg", "image/png"].includes(
+            req.files.img[i].mimetype
+          )
+        ) {
+          let url = await addImage(req.files.img[i].data);
+          adI.images.push({
+            url,
+            default: false,
+          });
+        }
+      }
+    }
+
+    adI.images = [...adI.images];
+    await adI.save();
+  }
+
+  res.json({ error: "" });
+};
 
 module.exports.signin = async function (req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    res.json({ errors: errors.mapped() });
+    res.json({ error: errors.mapped() });
     return;
   }
   const data = matchedData(req);
 
   const user = await User.findOne({ email: data.email });
   if (!user) {
-    res.json({ error: "Email e/ou senha errados" });
+    res.json({ error: "E-mail e/ou senha errados!" });
     return;
   }
 
   const match = await bcrypt.compare(data.password, user.passwordHash);
   if (!match) {
-    res.json({ error: "Email e/ou senha errados" });
+    res.json({ error: "E-mail e/ou senha errados!" });
     return;
   }
 
   const payload = (Date.now() + Math.random()).toString();
   const token = await bcrypt.hash(payload, 10);
+
   user.token = token;
   await user.save();
 
   res.json({ token, email: data.email });
 };
+
 module.exports.signup = async function (req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    res.json({ errors: errors.mapped() });
+    res.json({ error: errors.mapped() });
     return;
   }
   const data = matchedData(req);
-
-  const user = await User.findOne({ email: data.email });
+  const user = await User.findOne({
+    email: data.email,
+  });
   if (user) {
-    res.json({ error: { email: { msg: "Email ja existe" } } });
+    res.json({
+      error: { email: { msg: "E-mail já existe!" } },
+    });
     return;
   }
   if (mongoose.Types.ObjectId.isValid(data.state)) {
     const stateItem = await State.findById(data.state);
     if (!stateItem) {
-      res.json({ error: { state: { msg: "Estado inexistente" } } });
+      res.json({
+        error: { state: { msg: "Estado não existe" } },
+      });
       return;
     }
   } else {
-    res.json({ error: { state: { msg: "Campo de estado inválido	" } } });
+    res.json({
+      error: { state: { msg: "Código de estado inválido" } },
+    });
     return;
   }
-  const passwordHash = bcrypt.hashSync(data.password, 10);
+
+  const passwordHash = await bcrypt.hash(data.password, 10);
   const payload = (Date.now() + Math.random()).toString();
   const token = await bcrypt.hash(payload, 10);
 
-  const newuser = new User({
+  const newUser = new User({
     name: data.name,
     email: data.email,
-    passwordHash: passwordHash,
-    token: token,
+    passwordHash,
+    token,
     state: data.state,
   });
-  await newuser.save();
+  await newUser.save();
 
   res.json({ token });
 };
 
 module.exports.getStates = async function (req, res) {
-  const states = await State.find();
+  let states = await State.find();
   res.json({ states });
 };
+
 module.exports.getUserInfo = async function (req, res) {
-  let { token } = req.query;
+  let token = req.query.token;
+
   const user = await User.findOne({ token });
   const state = await State.findById(user.state);
   const ads = await Ad.find({ idUser: user._id.toString() });
@@ -309,45 +430,47 @@ module.exports.getUserInfo = async function (req, res) {
     ads: adList,
   });
 };
+
 module.exports.editUserInfo = async function (req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    res.json({ errors: errors.mapped() });
+    res.json({ error: errors.mapped() });
     return;
   }
   const data = matchedData(req);
-  let update = {};
-
+  let updates = {};
   if (data.name) {
-    update.name = data.name;
+    updates.name = data.name;
   }
 
   if (data.email) {
     const emailCheck = await User.findOne({ email: data.email });
     if (emailCheck) {
-      res.json({ error: "Email já existe" });
+      res.json({ error: "E-mail já existente!" });
       return;
     }
-    update.email = data.email;
+    updates.email = data.email;
   }
 
   if (data.state) {
     if (mongoose.Types.ObjectId.isValid(data.state)) {
       const stateCheck = await State.findById(data.state);
       if (!stateCheck) {
-        res.json({ error: "Estado inexistente" });
+        res.json({ error: { state: { msg: "Estado não existe" } } });
         return;
       }
-      update.state = data.state;
+      updates.state = data.state;
     } else {
-      res.json({ error: "Campo de estado inválido" });
+      res.json({ error: { state: { msg: "Código de estado inválido" } } });
       return;
     }
   }
+
   if (data.password) {
-    update.passwordHash = await bcrypt.hash(data.password, 10);
+    updates.passwordHash = await bcrypt.hash(data.password, 10);
   }
 
-  await User.findOneAndUpdate({ token: data.token }, { $set: update });
+  await User.findOneAndUpdate({ token: data.token }, { $set: updates });
+
   res.json({});
 };
